@@ -1,0 +1,10 @@
+fastapi==0.65.2
+starlette==0.14.2
+uvicorn==0.13.3
+gunicorn==20.0.4
+uvloop==0.15.1
+graphene==2.1.8
+SQLAlchemy==1.4.18
+grpcio==1.35.0
+grpcio-tools==1.35.0
+httptools==0.1.1
