@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.graphql import GraphQLApp
 from graphql.execution.executors.asyncio import AsyncioExecutor
+from apps.books.schema import QueryBooks
 from core.db import database
 from apps.auth import Mutation
 
@@ -38,7 +39,7 @@ app.add_route(
 app.add_route(
     "/books",
     GraphQLApp(
-        schema=graphene.Schema(mutation=Mutation),
+        schema=graphene.Schema(query=QueryBooks),
         executor_class=AsyncioExecutor
     ),
 )
