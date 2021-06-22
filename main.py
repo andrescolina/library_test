@@ -2,23 +2,43 @@ import graphene
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.graphql import GraphQLApp
-
-
-class Query(graphene.ObjectType):
-    hello = graphene.String(name=graphene.String(default_value="stranger"))
-
-    def resolve_hello(self, info, name):
-        request = info.context["request"]
-        print(request.headers.get("Authorization", ""))
-        return "Hello Buena " + name
+from graphql.execution.executors.asyncio import AsyncioExecutor
+from core.db import database
+from apps.auth import Mutation
 
 
 app = FastAPI()
 
-app.add_middleware(CORSMiddleware,
-                   allow_origins=["*"],
-                   allow_methods=["*"],
-                   allow_headers=["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
-app.add_route("/", GraphQLApp(schema=graphene.Schema(query=Query)))
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
+
+
+app.add_route(
+    "/auth",
+    GraphQLApp(
+        schema=graphene.Schema(mutation=Mutation),
+        executor_class=AsyncioExecutor
+    ),
+)
+
+app.add_route(
+    "/books",
+    GraphQLApp(
+        schema=graphene.Schema(mutation=Mutation),
+        executor_class=AsyncioExecutor
+    ),
+)
