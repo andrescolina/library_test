@@ -3,13 +3,15 @@ from core.security import (
     valid_auth
 )
 from .interface import (
-    InterfaceResult
+    InterfaceResultGet,
+    InterfaceResultPost
 )
 from core.db import database
 from .queries import (
     query_normal,
     query_relations
 )
+from .models import book
 from graphql import GraphQLError
 import asyncio
 import aiohttp
@@ -36,7 +38,6 @@ def map_response(data):
 async def get(session, url, **kwargs):
     resp = await session.request('GET', url=url, **kwargs)
     data = await resp.json()
-    print(data)
     if 'numFound' in data:
         if data['numFound']:
             elements = []
@@ -84,13 +85,13 @@ async def response_all(key, element, condition):
 class QueryBooks(graphene.ObjectType):
 
     books = graphene.List(
-        InterfaceResult,
+        InterfaceResultGet,
         id=graphene.Int(),
         title=graphene.String(),
         subtitle=graphene.String(),
         date_publish=graphene.String(),
         editor=graphene.String(),
-        description=graphene.String(),
+        descript=graphene.String(),
         image=graphene.String(),
         authors=graphene.String(),
         categories=graphene.String()
@@ -98,9 +99,11 @@ class QueryBooks(graphene.ObjectType):
 
     @valid_auth()
     async def resolve_books(self, info, **kwargs):
+        print(kwargs)
         for element in kwargs:
-            if element in ['title', 'subtitle', 'date_publish', 'editor', 'description', 'image']:
+            if element in ['title', 'subtitle', 'date_publish', 'editor', 'descript', 'image']:
                 search = kwargs[element].replace(' ', '+')
+                element = 'description' if element == 'descript' else element
                 data = await response_all(element, """'%""" + search + """%'""", 'like')
             elif element == 'id':
                 query = query_normal('id', str(kwargs['id']), '=')
@@ -131,5 +134,37 @@ class QueryBooks(graphene.ObjectType):
             for c in consume:
                 tasks.append(get(session=session, url=c, **{}))
             htmls = await asyncio.gather(*tasks, return_exceptions=True)
-            print(htmls)
             return htmls[0] + htmls[1]
+
+
+class RegisterBook(graphene.Mutation):
+
+    class Arguments:
+        title = graphene.String(required=True)
+        subtitle = graphene.String(required=True)
+        date_publish = graphene.String(required=True)
+        editor = graphene.String(required=True)
+        description = graphene.String(required=True)
+        image = graphene.String(required=True)
+        authors = graphene.List(graphene.String)
+        categories = graphene.List(graphene.String)
+
+    book = graphene.Field(InterfaceResultPost)
+
+    @staticmethod
+    @valid_auth()
+    async def mutate(parent, info, **kwargs):
+        user = info.context['user']
+        if len(kwargs['authors']) == 0 or len(kwargs['categories']) == 0:
+            raise GraphQLError('Field authors or authors have not items ')
+        query = book.insert().values(
+            title=kwargs['title'],
+            subtitle=kwargs['subtitle'],
+            date_publish=kwargs['date_publish'],
+            editor=kwargs['editor'],
+            description=kwargs['description'],
+            image=kwargs['image']
+        )
+        last_record_id = await database.execute(query)
+        kwargs['id'] = last_record_id
+        return RegisterBook(book=kwargs)

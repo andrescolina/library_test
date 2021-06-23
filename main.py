@@ -5,6 +5,7 @@ from starlette.graphql import GraphQLApp
 from graphql.execution.executors.asyncio import AsyncioExecutor
 from apps.books.schema import QueryBooks
 from core.db import database
+from apps.books import MutationBooks
 from apps.auth import Mutation
 
 
@@ -39,7 +40,7 @@ app.add_route(
 app.add_route(
     "/books",
     GraphQLApp(
-        schema=graphene.Schema(query=QueryBooks),
+        schema=graphene.Schema(query=QueryBooks, mutation=MutationBooks),
         executor_class=AsyncioExecutor
     ),
 )
