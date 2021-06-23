@@ -21,7 +21,7 @@ def valid_auth():
                     return func(any, info,  *args, **kwargs)
                 else:
                     raise GraphQLError('User inactive')
-            except Exception:
+            except Exception as e:
                 raise GraphQLError('Invalid Token')
         return wrapper
     return decorator_auth

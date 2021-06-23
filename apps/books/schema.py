@@ -1,4 +1,3 @@
-import graphene
 from core.security import (
     valid_auth
 )
@@ -11,10 +10,18 @@ from .queries import (
     query_normal,
     query_relations
 )
-from .models import book
+from .models import (
+    book,
+    authors,
+    authors_book,
+    category,
+    category_book
+)
+
 from graphql import GraphQLError
 import asyncio
 import aiohttp
+import graphene
 
 
 def map_response(data):
@@ -50,7 +57,7 @@ async def get(session, url, **kwargs):
                 item['description'] = ''
                 item['image'] = values['text'][0]
                 item['source'] = 'Open Library'
-                item['category'] = [values['top_work']]
+                item['categories'] = [values['top_work']]
                 item['authors'] = []
                 elements.append(item)
             return elements
@@ -66,7 +73,7 @@ async def get(session, url, **kwargs):
                 item['description'] = values['volumeInfo']['description'] if 'description' in values['volumeInfo'] else ''
                 item['image'] = (values['volumeInfo']['imageLinks']['smallThumbnail'] if 'imageLinks' in values['volumeInfo'] else '')
                 item['source'] = 'Google Books'
-                item['category'] = values['volumeInfo']['categories'] if 'categories' in values['volumeInfo'] else []
+                item['categories'] = values['volumeInfo']['categories'] if 'categories' in values['volumeInfo'] else []
                 item['authors'] = values['volumeInfo']['authors'] if 'authors' in values['volumeInfo'] else []
                 elements.append(item)
             return elements
@@ -134,7 +141,53 @@ class QueryBooks(graphene.ObjectType):
             for c in consume:
                 tasks.append(get(session=session, url=c, **{}))
             htmls = await asyncio.gather(*tasks, return_exceptions=True)
+            print(htmls)
             return htmls[0] + htmls[1]
+
+async def insert_intermediate(id_book, id_authors):
+    query_autbook = authors_book.insert().values(
+        book_id=int(id_book),
+        authors_id=int(id_authors)
+    )
+    await database.execute(query_autbook)
+
+
+async def insert_authors(id_book, authors_all):
+    for values in authors_all:
+        query = authors.select().where(authors.c.name == values)
+        data = await database.fetch_all(query)
+        if len(data) == 0:
+            query_inser = authors.insert().values(
+                name=values,
+                description=''
+            )
+            id_insert = await database.execute(query_inser)
+            await insert_intermediate(id_book, id_insert)
+        else:
+            await insert_intermediate(id_book, data[0].id)
+
+async def insert_intermediate_category(id_book, id_category):
+    query_autbook = category_book.insert().values(
+        book_id=int(id_book),
+        category_id=int(id_category)
+    )
+    await database.execute(query_autbook)
+
+
+async def insert_categories(id_book, categories_all):
+    for values in categories_all:
+        query = category.select().where(category.c.name == values)
+        data = await database.fetch_all(query)
+        if len(data) == 0:
+            query_inser = category.insert().values(
+                name=values,
+                description=''
+            )
+            id_insert = await database.execute(query_inser)
+            await insert_intermediate_category(id_book, id_insert)
+        else:
+            await insert_intermediate_category(id_book, data[0].id)
+
 
 
 class RegisterBook(graphene.Mutation):
@@ -151,6 +204,7 @@ class RegisterBook(graphene.Mutation):
 
     book = graphene.Field(InterfaceResultPost)
 
+
     @staticmethod
     @valid_auth()
     async def mutate(parent, info, **kwargs):
@@ -163,8 +217,11 @@ class RegisterBook(graphene.Mutation):
             date_publish=kwargs['date_publish'],
             editor=kwargs['editor'],
             description=kwargs['description'],
-            image=kwargs['image']
+            image=kwargs['image'],
+            user_created=user['id']
         )
         last_record_id = await database.execute(query)
         kwargs['id'] = last_record_id
+        await insert_authors(last_record_id, kwargs['authors'])
+        await insert_categories(last_record_id, kwargs['categories'])
         return RegisterBook(book=kwargs)
