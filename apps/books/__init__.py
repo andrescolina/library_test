@@ -1,5 +1,6 @@
 from .schema import (
-    RegisterBook
+    RegisterBook,
+    DeleteBook
 )
 import graphene
 
@@ -8,3 +9,4 @@ import graphene
 class MutationBooks(graphene.ObjectType):
 
     create_books = RegisterBook.Field()
+    delete_books = DeleteBook.Field()

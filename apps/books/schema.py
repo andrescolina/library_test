@@ -22,6 +22,8 @@ from graphql import GraphQLError
 import asyncio
 import aiohttp
 import graphene
+import os
+import sys
 
 
 def map_response(data):
@@ -189,7 +191,6 @@ async def insert_categories(id_book, categories_all):
             await insert_intermediate_category(id_book, data[0].id)
 
 
-
 class RegisterBook(graphene.Mutation):
 
     class Arguments:
@@ -225,3 +226,22 @@ class RegisterBook(graphene.Mutation):
         await insert_authors(last_record_id, kwargs['authors'])
         await insert_categories(last_record_id, kwargs['categories'])
         return RegisterBook(book=kwargs)
+
+
+class DeleteBook(graphene.Mutation):
+
+    class Arguments:
+        id = graphene.Int(required=True)
+
+    status = graphene.String()
+
+    @staticmethod
+    @valid_auth()
+    async def mutate(parent, info, **kwargs):
+        query = category_book.delete().where(category_book.c.book_id == int(kwargs['id']))
+        await database.execute(query)
+        query = authors_book.delete().where(authors_book.c.book_id == int(kwargs['id']))
+        await database.execute(query)
+        query = book.delete().where(book.c.id == int(kwargs['id']))
+        await database.execute(query)
+        return DeleteBook(status="ok")

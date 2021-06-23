@@ -1,0 +1,11 @@
+runtime: python39
+service: default
+entrypoint: gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app  --preload
+instance_class: F4
+env_variables:
+  DATABASE_URL_LIBRARY: "mysql://root:Bn$a@84rWEIG@35.192.65.64/library"
+  SECRET_KEY: "OqzQYQ88eA"
+
+
+default_expiration: "3s"
+
