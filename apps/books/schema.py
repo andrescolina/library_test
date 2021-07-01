@@ -22,8 +22,7 @@ from graphql import GraphQLError
 import asyncio
 import aiohttp
 import graphene
-import os
-import sys
+import functools
 
 
 def map_response(data):
@@ -70,7 +69,7 @@ async def get(session, url, **kwargs):
                 item = {}
                 item['title'] = values['volumeInfo']['title']
                 item['subtitle'] = ''
-                item['date_publish'] = values['volumeInfo']['publishedDate'][:4] + '-01-01'
+                item['date_publish'] = values['volumeInfo']['publishedDate'][:4] + '-01-01' if 'publishedDate' in values['volumeInfo'] else '2021-01-01'
                 item['editor'] = ''
                 item['description'] = values['volumeInfo']['description'] if 'description' in values['volumeInfo'] else ''
                 item['image'] = (values['volumeInfo']['imageLinks']['smallThumbnail'] if 'imageLinks' in values['volumeInfo'] else '')
@@ -108,10 +107,10 @@ class QueryBooks(graphene.ObjectType):
 
     @valid_auth()
     async def resolve_books(self, info, **kwargs):
-        print(kwargs)
         for element in kwargs:
+            repls = {' ': '+', "'": '"'}
+            search = functools.reduce(lambda a, kv: a.replace(*kv), repls.items(), kwargs[element])
             if element in ['title', 'subtitle', 'date_publish', 'editor', 'descript', 'image']:
-                search = kwargs[element].replace(' ', '+')
                 element = 'description' if element == 'descript' else element
                 data = await response_all(element, """'%""" + search + """%'""", 'like')
             elif element == 'id':
@@ -143,8 +142,8 @@ class QueryBooks(graphene.ObjectType):
             for c in consume:
                 tasks.append(get(session=session, url=c, **{}))
             htmls = await asyncio.gather(*tasks, return_exceptions=True)
-            print(htmls)
             return htmls[0] + htmls[1]
+
 
 async def insert_intermediate(id_book, id_authors):
     query_autbook = authors_book.insert().values(
@@ -167,6 +166,7 @@ async def insert_authors(id_book, authors_all):
             await insert_intermediate(id_book, id_insert)
         else:
             await insert_intermediate(id_book, data[0].id)
+
 
 async def insert_intermediate_category(id_book, id_category):
     query_autbook = category_book.insert().values(
